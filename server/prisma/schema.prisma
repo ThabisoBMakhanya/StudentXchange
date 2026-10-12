@@ -1,0 +1,262 @@
+// StudentXchange — PostgreSQL schema
+// Three-sided marketplace: customers, sellers, admin with escrow
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users & Auth ────────────────────────────────────────────────────────────
+
+enum Role {
+  CUSTOMER
+  SELLER
+  ADMIN
+}
+
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+model User {
+  id          String     @id @default(uuid())
+  fullName    String
+  email       String     @unique
+  phone       String
+  university  String
+  passwordHash String
+  roles       Role[]     @default([CUSTOMER])
+  kycStatus   KycStatus  @default(NOT_SUBMITTED)
+  status      UserStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  listings        Listing[]
+  ordersAsBuyer   Order[]       @relation("BuyerOrders")
+  ordersAsSeller  Order[]       @relation("SellerOrders")
+  disputesRaised  Dispute[]
+  payouts         Payout[]
+  kycSubmissions  KycSubmission[]
+  auditLogs       AuditLog[]
+
+  @@map("users")
+}
+
+model KycSubmission {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  idNumber  String
+  idPhotoUrl String
+  status    KycStatus @default(PENDING)
+  note      String?
+  reviewedBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("kyc_submissions")
+}
+
+// ─── Categories (two separate trees) ─────────────────────────────────────────
+
+enum ListingType {
+  PHYSICAL
+  SERVICE
+}
+
+model Category {
+  id          String      @id @default(uuid())
+  type        ListingType
+  name        String
+  slug        String      @unique
+  description String      @default("")
+  icon        String      @default("grid")
+  parentId    String?
+  parent      Category?   @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[]  @relation("CategoryTree")
+  active      Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  listings    Listing[]
+
+  @@map("categories")
+}
+
+// ─── Listings ────────────────────────────────────────────────────────────────
+
+enum ListingStatus {
+  ACTIVE
+  PAUSED
+  SOLD_OUT
+}
+
+enum ItemCondition {
+  NEW
+  LIKE_NEW
+  GOOD
+  FAIR
+}
+
+model Listing {
+  id               String         @id @default(uuid())
+  sellerId         String
+  seller           User           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  type             ListingType
+  categoryId       String
+  category         Category       @relation(fields: [categoryId], references: [id])
+  title            String
+  description      String         @default("")
+  price            Decimal        @db.Decimal(10, 2)
+  currency         String         @default("SZL")
+  images           String[]       @default([])
+  // Physical items
+  stock            Int?
+  condition        ItemCondition?
+  // Services
+  durationMinutes  Int?
+  availabilitySlots String[]      @default([])
+  location         String         @default("")
+  status           ListingStatus  @default(ACTIVE)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  orders           Order[]
+
+  @@map("listings")
+}
+
+// ─── Orders & Escrow ─────────────────────────────────────────────────────────
+
+enum EscrowStatus {
+  PENDING_PAYMENT
+  HELD
+  WITHHELD_BY_ADMIN
+  RELEASED
+  REFUNDED
+  SPLIT
+  DISPUTED
+}
+
+enum PaymentMethod {
+  DPO_PAY
+  MTN_MOMO
+}
+
+model Order {
+  id             String        @id @default(uuid())
+  listingId      String
+  listing        Listing       @relation(fields: [listingId], references: [id])
+  buyerId        String
+  buyer          User          @relation("BuyerOrders", fields: [buyerId], references: [id])
+  sellerId       String
+  seller         User          @relation("SellerOrders", fields: [sellerId], references: [id])
+  quantity       Int           @default(1)
+  unitPrice      Decimal       @db.Decimal(10, 2)
+  total          Decimal       @db.Decimal(10, 2)
+  commission     Decimal       @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod
+  escrowStatus   EscrowStatus  @default(PENDING_PAYMENT)
+  trackingCode   String?
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  confirmedAt    DateTime?
+  withheldAt     DateTime?
+  withheldReason String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  dispute        Dispute?
+  payout         Payout?
+
+  @@map("orders")
+}
+
+// ─── Disputes ────────────────────────────────────────────────────────────────
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED_BUYER
+  RESOLVED_SELLER
+  SPLIT
+  CLOSED
+}
+
+model Dispute {
+  id             String       @id @default(uuid())
+  orderId        String       @unique
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  raisedById     String
+  raisedBy       User         @relation(fields: [raisedById], references: [id])
+  reason         String
+  details        String       @default("")
+  status         DisputeStatus @default(OPEN)
+  resolutionNote String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("disputes")
+}
+
+// ─── Payouts ─────────────────────────────────────────────────────────────────
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+model Payout {
+  id        String        @id @default(uuid())
+  sellerId  String
+  seller    User          @relation(fields: [sellerId], references: [id])
+  orderId   String        @unique
+  order     Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount    Decimal       @db.Decimal(10, 2)
+  status    PayoutStatus  @default(PENDING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("payouts")
+}
+
+// ─── Audit Log ───────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+  action     String
+  targetType String
+  targetId   String
+  detail     String   @default("")
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+// ─── Platform Settings ───────────────────────────────────────────────────────
+
+model PlatformSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
+}

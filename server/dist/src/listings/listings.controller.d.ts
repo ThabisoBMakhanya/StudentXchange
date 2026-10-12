@@ -1,0 +1,64 @@
+import { ListingsService } from './listings.service';
+import { CreateListingDto } from './dto/create-listing.dto';
+import { ListingsQueryDto } from './dto/listings-query.dto';
+export declare class ListingsController {
+    private listings;
+    constructor(listings: ListingsService);
+    findAll(query: ListingsQueryDto): Promise<{
+        id: string;
+        status: import(".prisma/client").$Enums.ListingStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        sellerId: string;
+        type: import(".prisma/client").$Enums.ListingType;
+        categoryId: string;
+        title: string;
+        description: string;
+        price: import("@prisma/client/runtime/library").Decimal;
+        currency: string;
+        images: string[];
+        stock: number | null;
+        condition: import(".prisma/client").$Enums.ItemCondition | null;
+        durationMinutes: number | null;
+        availabilitySlots: string[];
+        location: string;
+    }[]>;
+    findOne(id: string): Promise<{
+        id: string;
+        status: import(".prisma/client").$Enums.ListingStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        sellerId: string;
+        type: import(".prisma/client").$Enums.ListingType;
+        categoryId: string;
+        title: string;
+        description: string;
+        price: import("@prisma/client/runtime/library").Decimal;
+        currency: string;
+        images: string[];
+        stock: number | null;
+        condition: import(".prisma/client").$Enums.ItemCondition | null;
+        durationMinutes: number | null;
+        availabilitySlots: string[];
+        location: string;
+    }>;
+    create(sellerId: string, dto: CreateListingDto): Promise<{
+        id: string;
+        status: import(".prisma/client").$Enums.ListingStatus;
+        createdAt: Date;
+        updatedAt: Date;
+        sellerId: string;
+        type: import(".prisma/client").$Enums.ListingType;
+        categoryId: string;
+        title: string;
+        description: string;
+        price: import("@prisma/client/runtime/library").Decimal;
+        currency: string;
+        images: string[];
+        stock: number | null;
+        condition: import(".prisma/client").$Enums.ItemCondition | null;
+        durationMinutes: number | null;
+        availabilitySlots: string[];
+        location: string;
+    }>;
+}
