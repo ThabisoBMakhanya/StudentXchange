@@ -19,13 +19,20 @@ export function CartPage() {
     queryKey: ['cart-listings', items.map((i) => i.listingId).join(',')],
     queryFn: async () => {
       const results = await Promise.all(items.map((i) => getListing(i.listingId)));
-      return results.filter(Boolean);
+      const validListings = results.filter(Boolean);
+      const soldOutIds = new Set(
+        items.filter((_, idx) => !results[idx]).map((i) => i.listingId),
+      );
+      if (soldOutIds.size > 0) {
+        items.filter((i) => soldOutIds.has(i.listingId)).forEach((i) => removeItem(i.listingId));
+      }
+      return results;
     },
     enabled: items.length > 0,
   });
 
-  const total = (listingsQuery.data ?? []).reduce((sum, listing, idx) => {
-    const item = items[idx];
+  const total = items.reduce((sum, item, idx) => {
+    const listing = listingsQuery.data?.[idx];
     return sum + (listing ? listing.price * item.quantity : 0);
   }, 0);
 

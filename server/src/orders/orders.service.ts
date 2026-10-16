@@ -23,6 +23,7 @@ export class OrdersService {
     });
     if (!listing) throw new NotFoundException('Listing not found.');
     if (listing.status !== 'ACTIVE') throw new BadRequestException('Listing is not active.');
+    if (listing.stock !== null && listing.stock <= 0) throw new BadRequestException('Listing is sold out.');
 
     if (listing.type === 'PHYSICAL') {
       const stock = listing.stock ?? 0;
@@ -35,9 +36,13 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       // Decrement stock for physical items
       if (listing.type === 'PHYSICAL') {
+        const newStock = (listing.stock ?? 0) - dto.quantity;
         await tx.listing.update({
           where: { id: listing.id },
-          data: { stock: { decrement: dto.quantity } },
+          data: {
+            stock: newStock,
+            status: newStock <= 0 ? 'SOLD_OUT' : 'ACTIVE',
+          },
         });
       }
 
@@ -117,6 +122,22 @@ export class OrdersService {
   }
 
   // ─── Queries ───────────────────────────────────────────────────────────────
+
+  async findForBuyer(buyerId: string) {
+    return this.prisma.order.findMany({
+      where: { buyerId },
+      include: { listing: true, buyer: true, seller: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findForSeller(sellerId: string) {
+    return this.prisma.order.findMany({
+      where: { sellerId },
+      include: { listing: true, buyer: true, seller: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 
   async findOne(id: string, requesterId: string) {
     const order = await this.prisma.order.findUnique({

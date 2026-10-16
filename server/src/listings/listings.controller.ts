@@ -29,6 +29,18 @@ export class ListingsController {
     return this.listings.findOne(id);
   }
 
+  @Get('categories')
+  getCategories(@Query('type') type?: 'PHYSICAL' | 'SERVICE') {
+    return this.listings.getCategories(type);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SELLER)
+  @Get('seller/listings')
+  getSellerListings(@CurrentUser('sub') sellerId: string) {
+    return this.listings.findForSeller(sellerId);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SELLER)
   @Post('listings')

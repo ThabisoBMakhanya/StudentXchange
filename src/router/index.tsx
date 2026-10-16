@@ -2,7 +2,6 @@ import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useRoleStore } from '../stores/roleStore';
 import type { ReactNode } from 'react';
-import { Spinner } from '../components/ui/Spinner';
 
 import { LoginPage } from '../pages/auth/LoginPage';
 import { RegisterPage } from '../pages/auth/RegisterPage';
@@ -57,11 +56,15 @@ function RequireAdmin({ children }: { children: ReactNode }) {
 /**
  * Portal 1 root — pins single-role users to their only portal view.
  * Dual-role users land on the customer home (role switcher available).
+ * Admins with marketplace roles land on customer home (they can reach /admin via profile).
  */
 function MarketplaceRoot() {
   const user = useAuthStore((s) => s.user);
   const mode = useRoleStore((s) => s.mode);
   if (!user) return <Navigate to="/login" replace />;
+  if (user.roles.includes('admin') && user.roles.length === 1) {
+    return <Navigate to="/admin" replace />;
+  }
   if (user.roles.length === 1 && user.roles[0] === 'seller') {
     return <Navigate to="/seller" replace />;
   }

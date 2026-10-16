@@ -51,7 +51,26 @@ export function ListingDetailPage() {
     );
   }
 
+  const isSoldOut = listing.status === 'sold_out' || (listing.type === 'physical' && (listing.stock ?? 0) <= 0);
   const maxQty = listing.type === 'physical' ? listing.stock ?? 1 : 1;
+
+  if (isSoldOut) {
+    return (
+      <div className="flex min-h-screen flex-col bg-surface">
+        <Header title="Sold out" onBack={() => navigate(-1)} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface">
+            <Icon name="cart" size={28} className="text-ink-secondary" />
+          </div>
+          <h2 className="text-lg font-bold text-ink">This item is sold out</h2>
+          <p className="text-sm text-ink-secondary">Check back later or browse other listings.</p>
+          <button onClick={() => navigate('/')} className="btn-primary mt-2">
+            Browse listings
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">

@@ -36,6 +36,16 @@ export class OrdersController {
     return this.orders.placeOrder(buyerId, dto);
   }
 
+  @Get('orders/buyer')
+  findForBuyer(@CurrentUser('sub') buyerId: string) {
+    return this.orders.findForBuyer(buyerId);
+  }
+
+  @Get('orders/seller')
+  findForSeller(@CurrentUser('sub') sellerId: string) {
+    return this.orders.findForSeller(sellerId);
+  }
+
   @Get('orders/:id')
   findOne(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     return this.orders.findOne(id, userId);

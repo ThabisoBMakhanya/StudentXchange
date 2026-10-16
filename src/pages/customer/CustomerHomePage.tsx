@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getListings, getCategories } from '../../lib/api';
 import { useCartStore } from '../../stores/cartStore';
@@ -18,6 +19,7 @@ import { CUSTOMER_NAV } from '../../lib/navigation';
 import type { Category } from '../../types';
 
 export function CustomerHomePage() {
+  const navigate = useNavigate();
   const [typeFilter, setTypeFilter] = useState<ListingTypeFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
@@ -49,7 +51,7 @@ export function CustomerHomePage() {
         subtitle="Buy & sell on campus"
         right={
           <button
-            onClick={() => (window.location.href = '/cart')}
+            onClick={() => navigate('/cart')}
             className="relative flex h-10 w-10 items-center justify-center rounded-xl text-ink transition hover:bg-surface active:scale-95"
             aria-label="Cart"
           >

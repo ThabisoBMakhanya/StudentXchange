@@ -334,10 +334,9 @@ export async function setKycStatus(
   status: KycStatus,
   note?: string,
 ): Promise<User> {
-  // Note: the backend uses submissionId; this is a simplified wrapper
   return request(`/admin/kyc/${userId}/review`, {
     method: 'POST',
-    body: JSON.stringify({ status, note }),
+    body: JSON.stringify({ status: status.toUpperCase(), note }),
   }, getToken());
 }
 

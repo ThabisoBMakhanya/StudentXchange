@@ -16,12 +16,27 @@ class InitiatePaymentDto {
 }
 
 @UseGuards(JwtAuthGuard)
-@Controller('payments')
+@Controller()
 export class PaymentsController {
   constructor(private payments: PaymentsService) {}
 
-  @Post('orders/:orderId/initiate')
+  @Post('payments/orders/:orderId/initiate')
   initiate(@Param('orderId') orderId: string, @Body() dto: InitiatePaymentDto) {
     return this.payments.initiatePayment(orderId, dto.method);
+  }
+
+  @Post('payments/webhooks/:provider')
+  webhook(@Param('provider') provider: string, @Body() payload: any) {
+    return this.payments.handlePaymentWebhook(provider, payload);
+  }
+
+  @Post('payments/momo/status/:referenceId')
+  momoStatus(@Param('referenceId') referenceId: string) {
+    return this.payments.checkMtnMoMoStatus(referenceId);
+  }
+
+  @Post('payments/dpo/verify/:transactionToken')
+  dpoVerify(@Param('transactionToken') transactionToken: string) {
+    return this.payments.verifyDpoPayToken(transactionToken);
   }
 }

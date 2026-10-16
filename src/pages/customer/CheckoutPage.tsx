@@ -22,7 +22,13 @@ export function CheckoutPage() {
     queryKey: ['checkout-listings', items.map((i) => i.listingId).join(',')],
     queryFn: async () => {
       const results = await Promise.all(items.map((i) => getListing(i.listingId)));
-      return results.filter(Boolean);
+      const soldOutIds = new Set(
+        items.filter((_, idx) => !results[idx]).map((i) => i.listingId),
+      );
+      if (soldOutIds.size > 0) {
+        items.filter((i) => soldOutIds.has(i.listingId)).forEach((i) => clear());
+      }
+      return results;
     },
     enabled: items.length > 0,
   });
@@ -40,10 +46,8 @@ export function CheckoutPage() {
       }
       return orders;
     },
-    onSuccess: (orders) => {
-      clear();
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
-      navigate(`/orders/${orders[0].id}?paid=1`);
     },
     onError: (err: Error) => setError(err.message),
   });
@@ -56,10 +60,44 @@ export function CheckoutPage() {
   if (!user || items.length === 0) return null;
 
   const listings = listingsQuery.data ?? [];
-  const total = listings.reduce((sum, listing, idx) => {
-    const item = items[idx];
+  const total = items.reduce((sum, item, idx) => {
+    const listing = listings[idx];
     return sum + (listing ? listing.price * item.quantity : 0);
   }, 0);
+
+  const handlePay = async () => {
+    setError('');
+    try {
+      const orders = await orderMutation.mutateAsync();
+      clear();
+      const firstOrder = orders[0];
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/payments/orders/${firstOrder.id}/initiate`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${useAuthStore.getState().token}`,
+          },
+          body: JSON.stringify({ method: paymentMethod }),
+        },
+      );
+
+      if (!response.ok) throw new Error('Failed to initiate payment');
+      const paymentData = await response.json();
+
+      if (paymentData.provider === 'DPO_PAY' && paymentData.paymentUrl) {
+        window.location.href = paymentData.paymentUrl;
+      } else if (paymentData.provider === 'MTN_MOMO') {
+        navigate(`/orders/${firstOrder.id}?momo_ref=${paymentData.reference}&paid=1`);
+      } else {
+        navigate(`/orders/${firstOrder.id}?paid=1`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Payment failed');
+    }
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-surface">
@@ -130,14 +168,11 @@ export function CheckoutPage() {
             )}
 
             <button
-              onClick={() => {
-                setError('');
-                orderMutation.mutate();
-              }}
+              onClick={handlePay}
               disabled={orderMutation.isPending}
               className="btn-primary w-full"
             >
-              {orderMutation.isPending ? 'Processing payment…' : `Pay ${formatSZL(total)}`}
+              {orderMutation.isPending ? 'Processing…' : `Pay ${formatSZL(total)}`}
             </button>
           </div>
         )}

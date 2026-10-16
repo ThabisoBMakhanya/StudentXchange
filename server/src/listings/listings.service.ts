@@ -7,8 +7,22 @@ import { ListingsQueryDto } from './dto/listings-query.dto';
 export class ListingsService {
   constructor(private prisma: PrismaService) {}
 
+  async getCategories(type?: 'PHYSICAL' | 'SERVICE') {
+    return this.prisma.category.findMany({
+      where: type ? { type } : undefined,
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  async findForSeller(sellerId: string) {
+    return this.prisma.listing.findMany({
+      where: { sellerId, status: { not: 'SOLD_OUT' } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async findAll(query: ListingsQueryDto) {
-    const where: any = { status: 'ACTIVE' };
+    const where: any = { status: 'ACTIVE', stock: { gt: 0 } };
     if (query.type) where.type = query.type.toUpperCase();
     if (query.search) {
       where.OR = [
@@ -39,6 +53,9 @@ export class ListingsService {
   async findOne(id: string) {
     const listing = await this.prisma.listing.findUnique({ where: { id } });
     if (!listing) throw new NotFoundException('Listing not found.');
+    if (listing.status === 'SOLD_OUT' || (listing.stock !== null && listing.stock <= 0)) {
+      throw new NotFoundException('Listing not found.');
+    }
     return listing;
   }
 

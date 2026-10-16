@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { confirmReceipt, getOrder, raiseDispute } from '../../lib/api';
@@ -43,6 +43,30 @@ export function OrderDetailPage() {
       setShowDispute(false);
     },
   });
+
+  const momoRef = searchParams.get('momo_ref');
+  const { data: momoStatus } = useQuery({
+    queryKey: ['momo-status', momoRef],
+    queryFn: async () => {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/payments/momo/status/${momoRef}`,
+      );
+      return res.json();
+    },
+    enabled: !!momoRef,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === 'SUCCESSFUL' || status === 'FAILED') return false;
+      return 5000;
+    },
+  });
+
+  useEffect(() => {
+    if (momoStatus?.status === 'SUCCESSFUL') {
+      queryClient.invalidateQueries({ queryKey: ['order', id] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    }
+  }, [momoStatus, queryClient, id]);
 
   if (orderQuery.isLoading) return <Spinner fullScreen label="Loading order…" />;
   const order = orderQuery.data;

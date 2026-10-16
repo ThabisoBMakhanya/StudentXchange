@@ -72,6 +72,16 @@ export function ProfilePage() {
           </button>
         )}
 
+        {user.roles.includes('admin') && (
+          <button
+            onClick={() => navigate('/admin')}
+            className="btn-secondary w-full"
+          >
+            <Icon name="shield" size={18} />
+            Admin Portal
+          </button>
+        )}
+
         <button
           onClick={() => {
             logout();
