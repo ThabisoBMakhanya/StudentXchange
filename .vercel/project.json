@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_LMP9e8CRy0MISYDqvK0mZCiAD7KA",
+  "orgId": "team_f96aqLx1PniPIbyCEernZ21i",
+  "projectName": "studentxchange",
+  "settings": {
+    "createdAt": 1791543361176,
+    "framework": "vite",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

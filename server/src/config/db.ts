@@ -1,17 +1,14 @@
+import './env.js';
 import { Pool } from 'pg';
-import 'dotenv/config';
 
-const pool = new Pool({
+if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required in the server environment.');
+
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  max: 5,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 10_000
 });
 
-pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
-});
-
-export const query = (text: string, params?: any[]) => {
-  return pool.query(text, params);
-};
-
-export default pool;
+pool.on('error', (error) => console.error('Unexpected idle database connection error:', error.message));
+export const query = pool.query.bind(pool);

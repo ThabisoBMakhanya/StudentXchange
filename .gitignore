@@ -1,4 +1,11 @@
-.vercel
-.neon
-.env.local
 node_modules/
+dist/
+build/
+.env
+.env.local
+.env.*.local
+server/.env
+*.log
+.DS_Store
+.vscode/
+.idea/

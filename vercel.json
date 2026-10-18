@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/handler?__sx_path=$1" }
+  ]
+}
