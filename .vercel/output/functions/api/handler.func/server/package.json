@@ -7,6 +7,7 @@
     "start": "tsx src/index.ts",
     "migrate": "tsx src/scripts/migrate.ts",
     "seed": "tsx src/scripts/seed.ts",
+    "admin:reset": "tsx src/scripts/reset-admin.ts",
     "typecheck": "tsc --noEmit"
   }
 }

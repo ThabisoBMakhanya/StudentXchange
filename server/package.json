@@ -6,7 +6,16 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "migrate": "tsx src/scripts/migrate.ts",
+    "migrate:admin-controls": "tsx src/scripts/migrate-admin-controls.ts",
+    "migrate:email-verification": "tsx src/scripts/migrate-email-verification.ts",
+    "migrate:dpo-checkout": "node src/scripts/migrate-dpo-checkout.mjs",
+    "migrate:payout-reference": "tsx src/scripts/migrate-payout-reference.ts",
+    "migrate:payments-engine": "tsx src/scripts/migrate-payments-engine.ts",
     "seed": "tsx src/scripts/seed.ts",
+    "admin:reset": "tsx src/scripts/reset-admin.ts",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "resend": "^6.34.1"
   }
 }

@@ -1,1 +1,1 @@
-{"name":"StudentXchange","short_name":"SX","start_url":"/","display":"standalone","background_color":"#ffffff","lang":"en","scope":"/","theme_color":"#1749d1","icons":[{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml"}]}
+{"name":"StudentXchange","short_name":"StudentXchange","start_url":"/","display":"standalone","background_color":"#ffffff","lang":"en","scope":"/","theme_color":"#1749d1","icons":[{"src":"/pwa-192x192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"/studentxchange-logo.png","sizes":"512x512","type":"image/png","purpose":"any"}]}

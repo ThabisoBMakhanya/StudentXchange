@@ -1,5 +1,14 @@
 import { app } from '../server/src/app.js';
 export default function handler(req, res) {
+    try {
+        // Vercel eagerly exposes parsed JSON on req.body; preserve it for Express
+        // instead of attempting to parse an already-consumed request stream.
+        if (req.body !== undefined)
+            req.sxBodyParsedByVercel = true;
+    }
+    catch {
+        return res.status(400).json({ error: 'Invalid JSON request body.' });
+    }
     const rawPath = req.query.__sx_path;
     const route = Array.isArray(rawPath) ? rawPath[0] : String(rawPath ?? '');
     const params = new URLSearchParams();
