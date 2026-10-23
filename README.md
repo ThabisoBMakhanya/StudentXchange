@@ -29,7 +29,7 @@ Customer and seller accounts can register and sign in without email verification
 Admin passwords cannot be recovered from Neon because only a password hash is stored. The admin login reads from the Prisma `users` table (the legacy `sx_users` table is not used). To reset the account, run this from the `server/` directory on a machine with the linked Neon `DATABASE_URL` in `server/.env`:
 
 ```powershell
-  $env:ADMIN_EMAIL = "admin@studentxchange.sz"
+  $env:ADMIN_EMAIL = " "
   $secure = Read-Host "New admin password (12+ characters)" -AsSecureString
   $env:ADMIN_PASSWORD = [System.Net.NetworkCredential]::new("", $secure).Password
   $env:CONFIRM_ADMIN_PASSWORD_RESET = "YES"

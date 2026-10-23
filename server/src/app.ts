@@ -314,6 +314,23 @@ app.get('/api/admin/users',requireAuth,requireAdmin,async (_req,res) => {
   } catch(error:any) { console.error('Admin users failed:',error.message);return res.status(500).json({error:'Could not load user accounts.'}); }
 });
 
+app.get('/api/admin/users/:id/print-record',requireAuth,requireAdmin,async (req:AuthRequest,res) => {
+  const client=await pool.connect();
+  try {
+    const result=await client.query(`SELECT u."id",u."fullName" AS full_name,u."email",u."phone",u."university" AS campus,
+      lower(u."status"::text) AS status,lower(u."kycStatus"::text) AS kyc_status,
+      ARRAY(SELECT lower(item.role::text) FROM unnest(u."roles") AS item(role)) AS roles,u."createdAt" AS created_at,
+      k."idNumber" AS student_id_number,k."idPhotoUrl" AS id_photo_url,k."note" AS verification_note,
+      lower(k."status"::text) AS verification_status,k."createdAt" AS verification_submitted_at,k."updatedAt" AS verification_updated_at
+      FROM users u LEFT JOIN LATERAL (SELECT * FROM kyc_submissions WHERE "userId"=u."id" ORDER BY "createdAt" DESC LIMIT 1) k ON true
+      WHERE u."id"=$1`,[String(req.params.id)]);
+    if(!result.rows[0])return res.status(404).json({error:'User account not found.'});
+    await audit(client,req.auth!.userId,'user_record_printed','user',String(req.params.id));
+    return res.json(result.rows[0]);
+  } catch(error:any) { console.error('Admin user print record failed:',error.message);return res.status(500).json({error:'Could not load the user record.'}); }
+  finally { client.release(); }
+});
+
 app.patch('/api/admin/users/:id',requireAuth,requireAdmin,async (req:AuthRequest,res) => {
   const requested=String(req.body?.status??'').toLowerCase();
   const statuses:Record<string,string>={active:'ACTIVE',suspended:'SUSPENDED',banned:'BANNED'};

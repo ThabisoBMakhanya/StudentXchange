@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-const DEFAULT_BASE_URL = 'https://momoapi.momo.africa';
+const DEFAULT_BASE_URL = 'https://sandbox.momodeveloper.mtn.com';
 const cachedTokens: Partial<Record<'collection' | 'disbursement', { value: string; expiresAt: number }>> = {};
+
+function hasCredential(value: string | undefined): value is string {
+  return Boolean(value?.trim() && !value.trim().startsWith('REPLACE_WITH_'));
+}
 
 type MomoConfig = {
   baseUrl: string;
@@ -19,7 +23,7 @@ function getConfig(product: 'collection' | 'disbursement' = 'collection'): MomoC
     ? process.env.MTN_COLLECTION_SUBSCRIPTION_KEY
     : process.env.MTN_DISBURSEMENT_SUBSCRIPTION_KEY;
   const targetEnvironment = process.env.MTN_TARGET_ENVIRONMENT || 'sandbox';
-  if (!userId || !credentialToken || !subscriptionKey) {
+  if (!hasCredential(userId) || !hasCredential(credentialToken) || !hasCredential(subscriptionKey)) {
     throw new Error(`MTN MoMo ${product} credentials are incomplete.`);
   }
   return { baseUrl, userId, credentialToken, subscriptionKey, targetEnvironment };
@@ -67,8 +71,8 @@ async function momoRequest<T>(product: 'collection' | 'disbursement', path: stri
 
 export function momoConfigured(product: 'collection' | 'disbursement' = 'collection') {
   return Boolean(
-    process.env.MTN_USER_ID && process.env.MTN_CREDENTIAL_TOKEN &&
-    (product === 'collection' ? process.env.MTN_COLLECTION_SUBSCRIPTION_KEY : process.env.MTN_DISBURSEMENT_SUBSCRIPTION_KEY)
+    hasCredential(process.env.MTN_USER_ID) && hasCredential(process.env.MTN_CREDENTIAL_TOKEN) &&
+    hasCredential(product === 'collection' ? process.env.MTN_COLLECTION_SUBSCRIPTION_KEY : process.env.MTN_DISBURSEMENT_SUBSCRIPTION_KEY)
   );
 }
 
