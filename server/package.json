@@ -11,6 +11,7 @@
     "migrate:dpo-checkout": "node src/scripts/migrate-dpo-checkout.mjs",
     "migrate:payout-reference": "tsx src/scripts/migrate-payout-reference.ts",
     "migrate:payments-engine": "tsx src/scripts/migrate-payments-engine.ts",
+    "migrate:hand-to-hand": "tsx src/scripts/migrate-hand-to-hand.ts",
     "seed": "tsx src/scripts/seed.ts",
     "admin:reset": "tsx src/scripts/reset-admin.ts",
     "typecheck": "tsc --noEmit"

@@ -21,6 +21,7 @@ const uiStatus = (status: string, receiptConfirmed = false) => {
   if (status === 'HELD' || status === 'WITHHELD_BY_ADMIN') return receiptConfirmed ? 'completed' : 'paid';
   if (status === 'DISPUTED') return 'disputed';
   if (status === 'RELEASED') return 'completed';
+  if (status === 'COMPLETED') return 'completed';
   if (status === 'REFUNDED') return 'refunded';
   if (status === 'SPLIT') return 'split';
   return 'cancelled';
@@ -483,15 +484,15 @@ app.get('/api/seller/listings',requireAuth,requireApprovedKyc,async (req:AuthReq
 
 app.get('/api/orders',requireAuth,requireApprovedKyc,async (req:AuthRequest,res) => {
   try {
-    const result=await query(`SELECT o."id",o."buyerId" AS buyer_id,o."sellerId" AS seller_id,o."paymentMethod"::text AS payment_method,o."momoReferenceId" AS momo_reference_id,o."deliveredAt" AS delivered_at,lower(o."escrowStatus"::text) AS escrow_status,CASE WHEN EXISTS(SELECT 1 FROM audit_logs a WHERE a."targetType"='order' AND a."targetId"=o."id" AND a."action"='buyer_cancelled_order') THEN 'cancelled' WHEN EXISTS(SELECT 1 FROM audit_logs a WHERE a."targetType"='order' AND a."targetId"=o."id" AND a."action"='buyer_receipt_confirmed') THEN 'completed' ELSE CASE o."escrowStatus"::text WHEN 'PENDING_PAYMENT' THEN 'pending_payment' WHEN 'HELD' THEN 'paid' WHEN 'WITHHELD_BY_ADMIN' THEN 'paid' WHEN 'DISPUTED' THEN 'disputed' WHEN 'RELEASED' THEN 'completed' WHEN 'REFUNDED' THEN 'refunded' WHEN 'SPLIT' THEN 'split' ELSE 'cancelled' END END AS status,o."total"::text AS total_amount,'SZL' AS currency,o."createdAt" AS created_at,b."fullName" AS buyer_name,s."fullName" AS seller_name,CASE WHEN o."escrowStatus" IN ('HELD','WITHHELD_BY_ADMIN','DISPUTED') THEN o."total"::text ELSE '0' END AS held_amount,l."title" AS item_titles FROM orders o JOIN users b ON b."id"=o."buyerId" JOIN users s ON s."id"=o."sellerId" JOIN listings l ON l."id"=o."listingId" WHERE o."buyerId"=$1 OR o."sellerId"=$1 ORDER BY o."createdAt" DESC LIMIT 50`,[req.auth!.userId]);
+    const result=await query(`SELECT o."id",o."buyerId" AS buyer_id,o."sellerId" AS seller_id,o."paymentMethod"::text AS payment_method,o."momoReferenceId" AS momo_reference_id,o."deliveredAt" AS delivered_at,lower(o."escrowStatus"::text) AS escrow_status,CASE WHEN EXISTS(SELECT 1 FROM audit_logs a WHERE a."targetType"='order' AND a."targetId"=o."id" AND a."action"='buyer_cancelled_order') THEN 'cancelled' WHEN EXISTS(SELECT 1 FROM audit_logs a WHERE a."targetType"='order' AND a."targetId"=o."id" AND a."action"='buyer_receipt_confirmed') THEN 'completed' ELSE CASE o."escrowStatus"::text WHEN 'PENDING_PAYMENT' THEN 'pending_payment' WHEN 'HELD' THEN 'paid' WHEN 'WITHHELD_BY_ADMIN' THEN 'paid' WHEN 'DISPUTED' THEN 'disputed' WHEN 'RELEASED' THEN 'completed' WHEN 'COMPLETED' THEN 'completed' WHEN 'REFUNDED' THEN 'refunded' WHEN 'SPLIT' THEN 'split' ELSE 'cancelled' END END AS status,EXISTS(SELECT 1 FROM audit_logs a WHERE a."targetType"='order' AND a."targetId"=o."id" AND a."actorId"=o."buyerId" AND a."action"='hand_to_hand_confirmed') AS buyer_handoff_confirmed,EXISTS(SELECT 1 FROM audit_logs a WHERE a."targetType"='order' AND a."targetId"=o."id" AND a."actorId"=o."sellerId" AND a."action"='hand_to_hand_confirmed') AS seller_handoff_confirmed,o."total"::text AS total_amount,'SZL' AS currency,o."createdAt" AS created_at,b."fullName" AS buyer_name,s."fullName" AS seller_name,CASE WHEN o."escrowStatus" IN ('HELD','WITHHELD_BY_ADMIN','DISPUTED') THEN o."total"::text ELSE '0' END AS held_amount,l."title" AS item_titles FROM orders o JOIN users b ON b."id"=o."buyerId" JOIN users s ON s."id"=o."sellerId" JOIN listings l ON l."id"=o."listingId" WHERE o."buyerId"=$1 OR o."sellerId"=$1 ORDER BY o."createdAt" DESC LIMIT 50`,[req.auth!.userId]);
     return res.json(result.rows);
   } catch(error:any) { console.error('Orders failed:',error.message); return res.status(500).json({error:'Could not load orders.'}); }
 });
 
 app.post('/api/orders',requireAuth,requireApprovedKyc,async (req:AuthRequest,res) => {
-  const {listing_id,quantity=1,payment_method='DPO_PAY'}=req.body??{}; const count=typeof quantity==='number'?quantity:typeof quantity==='string'&&quantity.trim()?Number(quantity):Number.NaN;
+  const {listing_id,quantity=1,payment_method='HAND_TO_HAND'}=req.body??{}; const count=typeof quantity==='number'?quantity:typeof quantity==='string'&&quantity.trim()?Number(quantity):Number.NaN;
   if(!Number.isInteger(count)||count<1||count>50)return res.status(400).json({error:'Quantity must be a whole number between 1 and 50.'});
-  const method=String(payment_method).toUpperCase(); if(!['DPO_PAY','MTN_MOMO'].includes(method))return res.status(400).json({error:'Choose DPO Pay or MTN MoMo.'});
+  const method=String(payment_method).toUpperCase(); if(method!=='HAND_TO_HAND')return res.status(400).json({error:'Card and MTN MoMo payments are coming soon. Choose hand-to-hand payment for now.'});
   const client=await pool.connect();
   try {
     await client.query('BEGIN');
@@ -502,12 +503,43 @@ app.post('/api/orders',requireAuth,requireApprovedKyc,async (req:AuthRequest,res
       const reserved=await client.query(`SELECT COALESCE(SUM(o."quantity"),0)::int AS count FROM orders o WHERE o."listingId"=$1 AND o."escrowStatus"='PENDING_PAYMENT' AND EXISTS (SELECT 1 FROM audit_logs a WHERE a."targetType"='order' AND a."targetId"=o."id" AND a."action"='order_inventory_reserved') AND NOT EXISTS (SELECT 1 FROM audit_logs a WHERE a."targetType"='order' AND a."targetId"=o."id" AND a."action"='buyer_cancelled_order')`,[listing.id]);
       if(Number(listing.stock)-Number(reserved.rows[0].count)<count){await client.query('ROLLBACK');return res.status(409).json({error:'All available stock is currently reserved by pending checkouts.'});}
     }
-    const total=Number(listing.price)*count;const commissionRate=Number(process.env.PLATFORM_COMMISSION_RATE??'0.10');if(!Number.isFinite(commissionRate)||commissionRate<0||commissionRate>0.5){await client.query('ROLLBACK');return res.status(503).json({error:'Platform commission configuration is invalid.'});}const commission=(total*commissionRate).toFixed(2);const id=randomUUID();
+    const total=Number(listing.price)*count;const commission='0.00';const id=randomUUID();
     const order=await client.query('INSERT INTO orders ("id","listingId","buyerId","sellerId","quantity","unitPrice","total","commission","paymentMethod","escrowStatus","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::"PaymentMethod",\'PENDING_PAYMENT\',now()) RETURNING "id",lower("escrowStatus"::text) AS status,"total"::text AS total_amount',[id,listing.id,req.auth!.userId,listing.sellerId,count,listing.price,total,commission,method]);
-    await audit(client,req.auth!.userId,'order_inventory_reserved','order',id,'Stock is reserved for this pending checkout; inventory is reduced only after payment confirmation.');
-    await client.query('COMMIT'); return res.status(201).json({order:{...order.rows[0],currency:'SZL'},payment:{status:'pending',message:'Choose a payment method in My orders. Provider checkout requires active merchant credentials.'}});
+    await audit(client,req.auth!.userId,'order_inventory_reserved','order',id,'Stock is reserved until provider payment or both hand-to-hand confirmations complete.');
+    await client.query('COMMIT'); return res.status(201).json({order:{...order.rows[0],currency:'SZL'},payment:{status:'hand_to_hand',message:'Arrange payment and exchange directly with the seller. Both parties must confirm the hand-to-hand exchange in My orders.'}});
   } catch(error:any) { await client.query('ROLLBACK'); console.error('Order create failed:',error.message); return res.status(500).json({error:'Could not create order.'}); }
   finally { client.release(); }
+});
+
+app.post('/api/orders/:id/confirm-handoff',requireAuth,requireApprovedKyc,async (req:AuthRequest,res) => {
+  const client=await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const found=await client.query(`SELECT o."id",o."buyerId",o."sellerId",o."listingId",o."quantity",o."paymentMethod",o."escrowStatus",l."stock"
+      FROM orders o JOIN listings l ON l."id"=o."listingId" WHERE o."id"=$1 FOR UPDATE OF o,l`,[String(req.params.id)]);
+    const order=found.rows[0];
+    if(!order||order.paymentMethod!=='HAND_TO_HAND'||order.escrowStatus!=='PENDING_PAYMENT') {await client.query('ROLLBACK');return res.status(404).json({error:'Hand-to-hand order not found or already completed.'});}
+    if(order.buyerId!==req.auth!.userId&&order.sellerId!==req.auth!.userId) {await client.query('ROLLBACK');return res.status(403).json({error:'Only the buyer or seller can confirm this exchange.'});}
+    const cancelled=await client.query(`SELECT 1 FROM audit_logs WHERE "targetType"='order' AND "targetId"=$1 AND "action"='buyer_cancelled_order' LIMIT 1`,[order.id]);
+    if(cancelled.rows[0]) {await client.query('ROLLBACK');return res.status(409).json({error:'This order was cancelled.'});}
+    const prior=await client.query(`SELECT 1 FROM audit_logs WHERE "targetType"='order' AND "targetId"=$1 AND "actorId"=$2 AND "action"='hand_to_hand_confirmed' LIMIT 1`,[order.id,req.auth!.userId]);
+    if(!prior.rows[0])await audit(client,req.auth!.userId,'hand_to_hand_confirmed','order',order.id);
+    const confirmations=await client.query(`SELECT count(DISTINCT "actorId")::int AS count FROM audit_logs
+      WHERE "targetType"='order' AND "targetId"=$1 AND "action"='hand_to_hand_confirmed' AND "actorId"=ANY($2::text[])`,[order.id,[order.buyerId,order.sellerId]]);
+    const complete=Number(confirmations.rows[0].count)===2;
+    if(complete) {
+      if(order.stock!==null) {
+        const remaining=Number(order.stock)-Number(order.quantity);
+        if(remaining<0){await client.query('ROLLBACK');return res.status(409).json({error:'The listing no longer has enough stock to complete this exchange.'});}
+        await client.query(`UPDATE listings SET "stock"=$2,"status"=CASE WHEN $2=0 THEN 'SOLD_OUT'::"ListingStatus" ELSE "status" END,"updatedAt"=now() WHERE "id"=$1`,[order.listingId,remaining]);
+      }
+      await client.query(`UPDATE orders SET "escrowStatus"='COMPLETED',"updatedAt"=now() WHERE "id"=$1`,[order.id]);
+      await audit(client,req.auth!.userId,'hand_to_hand_order_completed','order',order.id);
+    }
+    await client.query('COMMIT');
+    return res.json({id:order.id,status:complete?'completed':'awaiting_other_party',confirmed_by_current_user:true});
+  } catch(error:any) {await client.query('ROLLBACK');console.error('Hand-to-hand confirmation failed:',error.message);return res.status(500).json({error:'Could not confirm this hand-to-hand exchange.'});}
+  finally {client.release();}
 });
 
 app.post('/api/orders/:id/cancel',requireAuth,requireApprovedKyc,async (req:AuthRequest,res) => {
@@ -517,6 +549,8 @@ app.post('/api/orders/:id/cancel',requireAuth,requireApprovedKyc,async (req:Auth
     const result=await client.query('SELECT o."id",o."listingId",o."quantity",o."escrowStatus",l."stock",l."status" AS listing_status FROM orders o JOIN listings l ON l."id"=o."listingId" WHERE o."id"=$1 AND o."buyerId"=$2 FOR UPDATE OF o,l',[String(req.params.id),req.auth!.userId]);
     const order=result.rows[0];
     if(!order||order.escrowStatus!=='PENDING_PAYMENT'){await client.query('ROLLBACK');return res.status(404).json({error:'Only an unpaid order can be cancelled.'});}
+    const handoffConfirmation=await client.query(`SELECT 1 FROM audit_logs WHERE "targetType"='order' AND "targetId"=$1 AND "action"='hand_to_hand_confirmed' LIMIT 1`,[order.id]);
+    if(handoffConfirmation.rows[0]){await client.query('ROLLBACK');return res.status(409).json({error:'This order cannot be cancelled after either party confirms the hand-to-hand exchange.'});}
     const cancelled=await client.query('SELECT 1 FROM audit_logs WHERE "targetType"=\'order\' AND "targetId"=$1 AND "action"=\'buyer_cancelled_order\'',[order.id]);
     if(cancelled.rows[0]){await client.query('ROLLBACK');return res.status(409).json({error:'This order has already been cancelled.'});}
     const hasNewReservation=await client.query('SELECT 1 FROM audit_logs WHERE "targetType"=\'order\' AND "targetId"=$1 AND "action"=\'order_inventory_reserved\' LIMIT 1',[order.id]);
@@ -599,6 +633,7 @@ app.post('/api/orders/:id/dispute',requireAuth,requireApprovedKyc,async (req:Aut
 
 app.post('/api/payments/:provider/start',requireAuth,requireApprovedKyc,async (req:AuthRequest,res) => {
   const provider=String(req.params.provider); if(!['dpo','momo'].includes(provider))return res.status(400).json({error:'Choose DPO Pay or MTN MoMo.'});
+  if(process.env.ONLINE_PAYMENTS_ENABLED!=='true')return res.status(503).json({error:'Card and MTN MoMo payments are coming soon. Use hand-to-hand payment for now.'});
   try {
     const order=await query('SELECT o."id",o."total",o."paymentMethod",o."escrowStatus",o."momoReferenceId",o."dpoTransactionToken",b."fullName" AS buyer_name,b."email" AS buyer_email,b."phone" AS buyer_phone,l."title" FROM orders o JOIN users b ON b."id"=o."buyerId" JOIN listings l ON l."id"=o."listingId" WHERE o."id"=$1 AND o."buyerId"=$2 AND o."escrowStatus"=\'PENDING_PAYMENT\' AND NOT EXISTS (SELECT 1 FROM audit_logs a WHERE a."targetType"=\'order\' AND a."targetId"=o."id" AND a."action"=\'buyer_cancelled_order\')',[String(req.body?.order_id??''),req.auth!.userId]);
     if(!order.rows[0])return res.status(404).json({error:'Payment order not found.'});
